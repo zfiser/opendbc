@@ -19,4 +19,9 @@ def build_car_data(cp: CANParser) -> list[structs.CarStateSP.CarDataItem]:
   odometer = cp.vl["UI_SETTING"]["ODOMETER"] if odometer_seen else None
   items.append(make_car_data_item("odometer", "Odometer", odometer, "km" if is_metric else "mi"))
 
+  # ENGINE_RPM (0x1C4), 0 is a valid value on a hybrid running on the electric motor, so go by the message being received
+  rpm_seen = cp.ts_nanos["ENGINE_RPM"]["RPM"] > 0
+  rpm = max(cp.vl["ENGINE_RPM"]["RPM"], 0.0) if rpm_seen else None
+  items.append(make_car_data_item("rpm", "Engine RPM", rpm, "rpm"))
+
   return items
