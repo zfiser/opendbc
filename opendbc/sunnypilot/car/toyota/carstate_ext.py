@@ -11,6 +11,7 @@ from opendbc.car import Bus, structs
 from opendbc.car.carlog import carlog
 from opendbc.can.parser import CANParser
 from opendbc.car.common.conversions import Conversions as CV
+from opendbc.sunnypilot.car.toyota.car_data import build_car_data
 from opendbc.sunnypilot.car.toyota.values import ToyotaFlagsSP
 
 TRAFFIC_SIGNAL_MAP = {
@@ -168,3 +169,5 @@ class CarStateExt:
     # Update traffic signals and speed limit
     self.update_traffic_signals(cp_cam)
     ret_sp.speedLimit = self.calculate_speed_limit()
+
+    ret_sp.carData = build_car_data(cp)

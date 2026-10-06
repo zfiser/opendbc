@@ -166,3 +166,12 @@ class CarControlSP:
 @auto_dataclass
 class CarStateSP:
   speedLimit: float = auto_field()
+  carData: list['CarStateSP.CarDataItem'] = auto_field()
+
+  @auto_dataclass
+  class CarDataItem:
+    key: str = auto_field()
+    label: str = auto_field()
+    value: float = auto_field()
+    unit: str = auto_field()
+    valid: bool = auto_field()
