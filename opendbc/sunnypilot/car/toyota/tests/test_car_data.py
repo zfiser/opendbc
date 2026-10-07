@@ -10,10 +10,14 @@ from opendbc.sunnypilot.car.car_data import make_car_data_item
 from opendbc.sunnypilot.car.toyota.car_data import build_car_data
 
 
-def _cp(odometer: float, odometer_ts: int, units: int, rpm: float = 0.0, rpm_ts: int = 0):
+def _cp(odometer: float, odometer_ts: int, units: int, rpm: float = 0.0, rpm_ts: int = 0,
+        pressures=(0, 0, 0, 0), pressure_ts: int = 0, temps=(0, 0, 0, 0), temp_ts: int = 0):
   return SimpleNamespace(
-    vl={"UI_SETTING": {"ODOMETER": odometer}, "BODY_CONTROL_STATE_2": {"UNITS": units}, "ENGINE_RPM": {"RPM": rpm}},
-    ts_nanos={"UI_SETTING": {"ODOMETER": odometer_ts}, "ENGINE_RPM": {"RPM": rpm_ts}},
+    vl={"UI_SETTING": {"ODOMETER": odometer}, "BODY_CONTROL_STATE_2": {"UNITS": units}, "ENGINE_RPM": {"RPM": rpm},
+        "TPMS_PRESSURE": {f"PRESSURE_{i + 1}": v for i, v in enumerate(pressures)},
+        "TPMS_TEMPERATURE": {f"TEMPERATURE_{i + 1}": v for i, v in enumerate(temps)}},
+    ts_nanos={"UI_SETTING": {"ODOMETER": odometer_ts}, "ENGINE_RPM": {"RPM": rpm_ts},
+              "TPMS_PRESSURE": {"PRESSURE_1": pressure_ts}, "TPMS_TEMPERATURE": {"TEMPERATURE_1": temp_ts}},
   )
 
 
@@ -56,3 +60,30 @@ class TestCarData:
 
   def test_rpm_not_received(self):
     assert not _by_key(build_car_data(_cp(0, 0, 1, rpm=500.0, rpm_ts=0)))["rpm"].valid
+
+  def test_tire_pressure_metric(self):
+    items = _by_key(build_car_data(_cp(0, 0, 1, pressures=(264, 264, 270, 260), pressure_ts=1)))
+    assert [items[f"tire_pressure_{i}"].value for i in range(1, 5)] == [264, 264, 270, 260]
+    assert items["tire_pressure_1"].unit == "kPa" and items["tire_pressure_1"].valid
+
+  def test_tire_pressure_imperial(self):
+    item = _by_key(build_car_data(_cp(0, 0, 3, pressures=(264, 0, 0, 0), pressure_ts=1)))["tire_pressure_1"]
+    assert item.unit == "psi" and abs(item.value - 38.3) < 0.05
+
+  def test_tire_pressure_not_available_markers_are_hidden(self):
+    items = _by_key(build_car_data(_cp(0, 0, 1, pressures=(264, 0x03FF, 0, 0xFFFF), pressure_ts=1)))
+    assert "tire_pressure_1" in items
+    assert not any(k in items for k in ("tire_pressure_2", "tire_pressure_3", "tire_pressure_4"))
+
+  def test_no_tire_tiles_when_the_message_is_missing(self):
+    items = _by_key(build_car_data(_cp(0, 0, 1, pressures=(264, 264, 264, 264), pressure_ts=0)))
+    assert not any(k.startswith("tire_") for k in items)
+
+  def test_tire_temperature_guess(self):
+    items = _by_key(build_car_data(_cp(0, 0, 1, temps=(65, 0x03FF, 0, 255), temp_ts=1)))
+    assert items["tire_temperature_1"].value == 25 and items["tire_temperature_1"].unit == "C"
+    assert not any(k in items for k in ("tire_temperature_2", "tire_temperature_3", "tire_temperature_4"))
+
+  def test_tire_temperature_imperial(self):
+    item = _by_key(build_car_data(_cp(0, 0, 3, temps=(65, 0, 0, 0), temp_ts=1)))["tire_temperature_1"]
+    assert item.unit == "F" and abs(item.value - 77) < 0.01
