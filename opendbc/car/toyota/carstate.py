@@ -222,8 +222,6 @@ class CarState(CarStateBase, CarStateExt):
       ("BLINKERS_STATE", float('nan')),
       ("UI_SETTING", float('nan')),  # odometer, slow and not sent on every car, must not invalidate the bus
       ("ENGINE_RPM", float('nan')),  # engine speed for the car data page, same reason
-      ("TPMS_PRESSURE", float('nan')),  # tire data for the car data page, sent every 3 s and not on every car
-      ("TPMS_TEMPERATURE", float('nan')),
     ]
 
     cam_messages = [
