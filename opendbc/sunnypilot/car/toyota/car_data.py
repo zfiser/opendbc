@@ -9,9 +9,7 @@ from opendbc.can.parser import CANParser
 from opendbc.sunnypilot.car.car_data import make_car_data_item
 
 KPA_TO_PSI = 0.14503774
-PRESSURE_INVALID = (0, 0xFFFF, 0x03FF)  # 0x03FF is what the car sends while it has no value
-TEMPERATURE_INVALID = (0, 0xFF, 0x00FF, 0x03FF, 0xFFFF)
-TEMPERATURE_OFFSET = 40  # degrees C, the usual Toyota offset (a guess for this message)
+TEMPERATURE_OFFSET = 40  # degrees C, the usual Toyota offset, a guess for this message
 
 
 def tire_pressure(raw: float, is_metric: bool) -> tuple[float, str]:
@@ -39,21 +37,16 @@ def build_car_data(cp: CANParser) -> list[structs.CarStateSP.CarDataItem]:
   rpm = max(cp.vl["ENGINE_RPM"]["RPM"], 0.0) if rpm_seen else None
   items.append(make_car_data_item("rpm", "Engine RPM", rpm, "rpm"))
 
-  # TPMS_PRESSURE (0x3A6): four little-endian values, the wheel order is not known yet.
-  # Only values that look real get a tile, so cars without this message show nothing.
+  # Both tiles are guesses and are shown whatever the value is, even a not available marker, so they can be compared with the dash.
+  # TPMS_PRESSURE (0x3A6): four little-endian values seen as 264, only the first one is used. It did not follow the real
+  # pressure in the recordings of 2026-10-07 (constant while the tires warmed up).
   if cp.ts_nanos["TPMS_PRESSURE"]["PRESSURE_1"] > 0:
-    for i in range(1, 5):
-      raw = cp.vl["TPMS_PRESSURE"][f"PRESSURE_{i}"]
-      if raw not in PRESSURE_INVALID:
-        value, unit = tire_pressure(raw, is_metric)
-        items.append(make_car_data_item(f"tire_pressure_{i}", f"Tire {i}", value, unit))
+    value, unit = tire_pressure(cp.vl["TPMS_PRESSURE"]["PRESSURE_1"], is_metric)
+    items.append(make_car_data_item("tire_pressure_guess", "Tire pressure?", value, unit))
 
-  # TPMS_TEMPERATURE (0x3A7): layout and offset are a guess, the recording only had 'not available' markers
+  # TPMS_TEMPERATURE (0x3A7): first 16-bit big-endian value minus 40 degrees C, a pure guess (the recordings had 0x03FF)
   if cp.ts_nanos["TPMS_TEMPERATURE"]["TEMPERATURE_1"] > 0:
-    for i in range(1, 5):
-      raw = cp.vl["TPMS_TEMPERATURE"][f"TEMPERATURE_{i}"]
-      if raw not in TEMPERATURE_INVALID:
-        value, unit = tire_temperature(raw, is_metric)
-        items.append(make_car_data_item(f"tire_temperature_{i}", f"Tire {i} temp", value, unit))
+    value, unit = tire_temperature(cp.vl["TPMS_TEMPERATURE"]["TEMPERATURE_1"], is_metric)
+    items.append(make_car_data_item("tire_temperature_guess", "Tire temp?", value, unit))
 
   return items

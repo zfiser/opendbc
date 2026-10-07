@@ -590,5 +590,5 @@ VAL_ 1556 BLINKER_BUTTON_PRESSED 1 "button pressed" 0 "not pressed";
 VAL_ 1570 HEADLIGHT_MODE 0 "headlights off" 2 "force parking lights" 4 "force low beams" 7 "auto low beams" 6 "auto parking lights";
 VAL_ 1592 LOCK_STATUS 0 "locked" 1 "unlocked";
 
-CM_ BO_ 934 "Guess from one recording (RAV4 Hybrid 2023, 2026-10): sent every 3 s, four identical little-endian values 264 while the tires were about 260 kPa. Not verified by changing a pressure.";
+CM_ BO_ 934 "Guess (RAV4 Hybrid 2023, 2026-10): sent every 3 s, four identical little-endian values 264. Did NOT follow the real tire pressure in 5 drives (constant while the tires warmed up), so probably not live pressure.";
 CM_ BO_ 935 "Pure guess: sent together with TPMS_PRESSURE, all 0x03FF (1023, looks like a not available marker) in the recording, so the layout and the offset are unknown.";

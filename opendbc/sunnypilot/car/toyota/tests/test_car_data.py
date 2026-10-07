@@ -61,29 +61,27 @@ class TestCarData:
   def test_rpm_not_received(self):
     assert not _by_key(build_car_data(_cp(0, 0, 1, rpm=500.0, rpm_ts=0)))["rpm"].valid
 
-  def test_tire_pressure_metric(self):
-    items = _by_key(build_car_data(_cp(0, 0, 1, pressures=(264, 264, 270, 260), pressure_ts=1)))
-    assert [items[f"tire_pressure_{i}"].value for i in range(1, 5)] == [264, 264, 270, 260]
-    assert items["tire_pressure_1"].unit == "kPa" and items["tire_pressure_1"].valid
+  def test_tire_pressure_guess_metric(self):
+    item = _by_key(build_car_data(_cp(0, 0, 1, pressures=(264, 1, 2, 3), pressure_ts=1)))["tire_pressure_guess"]
+    assert item.valid and item.value == 264 and item.unit == "kPa"
 
-  def test_tire_pressure_imperial(self):
-    item = _by_key(build_car_data(_cp(0, 0, 3, pressures=(264, 0, 0, 0), pressure_ts=1)))["tire_pressure_1"]
+  def test_tire_pressure_guess_imperial(self):
+    item = _by_key(build_car_data(_cp(0, 0, 3, pressures=(264, 0, 0, 0), pressure_ts=1)))["tire_pressure_guess"]
     assert item.unit == "psi" and abs(item.value - 38.3) < 0.05
 
-  def test_tire_pressure_not_available_markers_are_hidden(self):
-    items = _by_key(build_car_data(_cp(0, 0, 1, pressures=(264, 0x03FF, 0, 0xFFFF), pressure_ts=1)))
-    assert "tire_pressure_1" in items
-    assert not any(k in items for k in ("tire_pressure_2", "tire_pressure_3", "tire_pressure_4"))
+  def test_tire_values_are_shown_even_if_they_look_like_markers(self):
+    items = _by_key(build_car_data(_cp(0, 0, 1, pressures=(0x03FF, 0, 0, 0), pressure_ts=1, temps=(0x03FF, 0, 0, 0), temp_ts=1)))
+    assert items["tire_pressure_guess"].value == 0x03FF
+    assert items["tire_temperature_guess"].value == 0x03FF - 40
 
-  def test_no_tire_tiles_when_the_message_is_missing(self):
-    items = _by_key(build_car_data(_cp(0, 0, 1, pressures=(264, 264, 264, 264), pressure_ts=0)))
+  def test_no_tire_tiles_when_the_messages_are_missing(self):
+    items = _by_key(build_car_data(_cp(0, 0, 1, pressures=(264, 264, 264, 264), pressure_ts=0, temps=(65, 0, 0, 0), temp_ts=0)))
     assert not any(k.startswith("tire_") for k in items)
 
   def test_tire_temperature_guess(self):
-    items = _by_key(build_car_data(_cp(0, 0, 1, temps=(65, 0x03FF, 0, 255), temp_ts=1)))
-    assert items["tire_temperature_1"].value == 25 and items["tire_temperature_1"].unit == "C"
-    assert not any(k in items for k in ("tire_temperature_2", "tire_temperature_3", "tire_temperature_4"))
+    item = _by_key(build_car_data(_cp(0, 0, 1, temps=(65, 0, 0, 0), temp_ts=1)))["tire_temperature_guess"]
+    assert item.value == 25 and item.unit == "C"
 
-  def test_tire_temperature_imperial(self):
-    item = _by_key(build_car_data(_cp(0, 0, 3, temps=(65, 0, 0, 0), temp_ts=1)))["tire_temperature_1"]
+  def test_tire_temperature_guess_imperial(self):
+    item = _by_key(build_car_data(_cp(0, 0, 3, temps=(65, 0, 0, 0), temp_ts=1)))["tire_temperature_guess"]
     assert item.unit == "F" and abs(item.value - 77) < 0.01
