@@ -396,6 +396,18 @@ BO_ 1553 UI_SETTING: 8 XXX
  SG_ UNITS : 26|2@0+ (1,0) [0|3] "" XXX
  SG_ ODOMETER : 39|32@0+ (1,0) [0|1048575] "" XXX
 
+BO_ 934 TPMS_PRESSURE: 8 XXX
+ SG_ PRESSURE_1 : 0|16@1+ (1,0) [0|65535] "kPa" XXX
+ SG_ PRESSURE_2 : 16|16@1+ (1,0) [0|65535] "kPa" XXX
+ SG_ PRESSURE_3 : 32|16@1+ (1,0) [0|65535] "kPa" XXX
+ SG_ PRESSURE_4 : 48|16@1+ (1,0) [0|65535] "kPa" XXX
+
+BO_ 935 TPMS_TEMPERATURE: 8 XXX
+ SG_ TEMPERATURE_1 : 7|16@0+ (1,0) [0|65535] "" XXX
+ SG_ TEMPERATURE_2 : 23|16@0+ (1,0) [0|65535] "" XXX
+ SG_ TEMPERATURE_3 : 39|16@0+ (1,0) [0|65535] "" XXX
+ SG_ TEMPERATURE_4 : 55|16@0+ (1,0) [0|65535] "" XXX
+
 BO_ 1556 BLINKERS_STATE: 8 XXX
  SG_ BLINKER_BUTTON_PRESSED : 15|1@0+ (1,0) [0|1] "" XXX
  SG_ HAZARD_LIGHT : 27|1@0+ (1,0) [0|1] "" XXX
@@ -577,3 +589,6 @@ VAL_ 1556 TURN_SIGNALS 3 "none" 2 "right" 1 "left";
 VAL_ 1556 BLINKER_BUTTON_PRESSED 1 "button pressed" 0 "not pressed";
 VAL_ 1570 HEADLIGHT_MODE 0 "headlights off" 2 "force parking lights" 4 "force low beams" 7 "auto low beams" 6 "auto parking lights";
 VAL_ 1592 LOCK_STATUS 0 "locked" 1 "unlocked";
+
+CM_ BO_ 934 "Guess from one recording (RAV4 Hybrid 2023, 2026-10): sent every 3 s, four identical little-endian values 264 while the tires were about 260 kPa. Not verified by changing a pressure.";
+CM_ BO_ 935 "Pure guess: sent together with TPMS_PRESSURE, all 0x03FF (1023, looks like a not available marker) in the recording, so the layout and the offset are unknown.";
