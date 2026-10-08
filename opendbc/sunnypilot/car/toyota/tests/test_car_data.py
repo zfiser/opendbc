@@ -11,10 +11,11 @@ from opendbc.sunnypilot.car.toyota.car_data import build_car_data
 
 
 def _cp(odometer: float, odometer_ts: int, units: int, rpm: float = 0.0, rpm_ts: int = 0,
-        lead: float = 0.0, lead_ts: int = 0, brake: float = 0.0, brake_ts: int = 0):
+        lead: float = 0.0, lead_ts: int = 0, brake: float = 0.0, brake_ts: int = 0,
+        temp: float = 0.0, temp_ts: int = 0):
   return SimpleNamespace(
-    vl={"UI_SETTING": {"ODOMETER": odometer}, "BODY_CONTROL_STATE_2": {"UNITS": units}, "DSU_CRUISE": {"LEAD_DISTANCE": lead}, "BRAKE": {"BRAKE_FORCE": brake}, "ENGINE_RPM": {"RPM": rpm}},
-    ts_nanos={"UI_SETTING": {"ODOMETER": odometer_ts}, "ENGINE_RPM": {"RPM": rpm_ts}, "DSU_CRUISE": {"LEAD_DISTANCE": lead_ts}, "BRAKE": {"BRAKE_FORCE": brake_ts}},
+    vl={"UI_SETTING": {"ODOMETER": odometer}, "BODY_CONTROL_STATE_2": {"UNITS": units}, "DSU_CRUISE": {"LEAD_DISTANCE": lead}, "BRAKE": {"BRAKE_FORCE": brake}, "ENGINE_TEMPERATURE": {"ENGINE_TEMP": temp}, "ENGINE_RPM": {"RPM": rpm}},
+    ts_nanos={"UI_SETTING": {"ODOMETER": odometer_ts}, "ENGINE_RPM": {"RPM": rpm_ts}, "DSU_CRUISE": {"LEAD_DISTANCE": lead_ts}, "BRAKE": {"BRAKE_FORCE": brake_ts}, "ENGINE_TEMPERATURE": {"ENGINE_TEMP": temp_ts}},
   )
 
 
@@ -61,6 +62,17 @@ class TestCarData:
 
   def test_friction_brake_not_received_is_absent(self):
     assert "friction_brake_force" not in _by_key(build_car_data(_cp(0, 0, 1)))
+
+  def test_engine_temp_metric(self):
+    item = _by_key(build_car_data(_cp(0, 0, 1, temp=52, temp_ts=1)))["engine_temp"]
+    assert item.valid and item.value == 52 and item.unit == "C"
+
+  def test_engine_temp_imperial(self):
+    item = _by_key(build_car_data(_cp(0, 0, 3, temp=50, temp_ts=1)))["engine_temp"]
+    assert item.unit == "F" and abs(item.value - 122) < 0.01
+
+  def test_engine_temp_not_received_is_absent(self):
+    assert "engine_temp" not in _by_key(build_car_data(_cp(0, 0, 1)))
 
   def test_rpm(self):
     item = _by_key(build_car_data(_cp(0, 0, 1, rpm=1850.5, rpm_ts=1)))["rpm"]

@@ -221,6 +221,9 @@ BO_ 921 PCM_CRUISE_SM: 8 XXX
 BO_ 944 AIR_CONDITIONER_2: 8 XXX
  SG_ WINDSCREEN_DEFOG : 43|1@0+ (1,0) [0|1] "" XXX
 
+BO_ 953 ENGINE_TEMPERATURE: 8 XXX
+ SG_ ENGINE_TEMP : 47|8@0+ (1,0) [0|255] "C" XXX
+
 BO_ 951 ESP_CONTROL: 8 ESP
  SG_ TC_DISABLED : 13|1@0+ (1,0) [0|1] "" XXX
  SG_ VSC_DISABLED : 12|2@0+ (1,0) [0|1] "" XXX
@@ -490,6 +493,7 @@ CM_ SG_ 898 AIR_CONDITIONER_STATE "very difficult to parse with some air registe
 CM_ SG_ 921 UI_SET_SPEED "set speed shown in the vehicle's UI with the vehicle's unit";
 CM_ SG_ 921 TEMP_ACC_FAULTED "1 when the UI is displaying or playing fault-related alerts or sounds. Also 1 when pressing main on.";
 CM_ SG_ 951 BRAKE_LIGHTS_ACC "brake lights when ACC commands decel";
+CM_ SG_ 953 ENGINE_TEMP "Guess: degrees C, rises only while the engine runs (20-24 on a cold start, 50-60 after a few minutes, up to about 88 on long drives) in the 2026-10 RAV4 Hybrid recordings. Byte 0 of the same message is about twice this value. Not confirmed against another reading.";
 CM_ SG_ 956 GEAR "on 6MT, only R shows.";
 CM_ SG_ 1009 UI_SET_SPEED "units seem to be whatever the car is set to";
 CM_ SG_ 1041 PCS_INDICATOR "Pre-Collision System Indicator";

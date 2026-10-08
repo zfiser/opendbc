@@ -26,6 +26,12 @@ def build_car_data(cp: CANParser) -> list[structs.CarStateSP.CarDataItem]:
   rpm = max(cp.vl["ENGINE_RPM"]["RPM"], 0.0) if rpm_seen else None
   items.append(make_car_data_item("rpm", "Engine RPM", rpm, "rpm"))
 
+  # ENGINE_TEMPERATURE (0x3B9) byte 5: engine coolant temperature in degrees C, a guess that fits every recording: 20-24 on a cold
+  # start, rising only while the engine runs, 50-60 after a few minutes and up to about 88 on long drives. Not confirmed otherwise.
+  if cp.ts_nanos["ENGINE_TEMPERATURE"]["ENGINE_TEMP"] > 0:
+    celsius = cp.vl["ENGINE_TEMPERATURE"]["ENGINE_TEMP"]
+    items.append(make_car_data_item("engine_temp", "Engine temp", celsius if is_metric else celsius * 9 / 5 + 32, "C" if is_metric else "F"))
+
   # DSU_CRUISE (0x365) byte 4 is the distance to the radar lead in whole metres on the RAV4 2023, matched against the vision
   # lead in the 2026-10 recordings (median difference 1.2 m). It is reported while stock ACC is off as well.
   if cp.ts_nanos["DSU_CRUISE"]["LEAD_DISTANCE"] > 0:

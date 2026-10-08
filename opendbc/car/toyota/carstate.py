@@ -223,6 +223,7 @@ class CarState(CarStateBase, CarStateExt):
       ("UI_SETTING", float('nan')),  # odometer, slow and not sent on every car, must not invalidate the bus
       ("ENGINE_RPM", float('nan')),  # engine speed for the car data page, same reason
       ("DSU_CRUISE", float('nan')),  # radar lead distance in metres, 5 Hz, only the lead distance is used here
+      ("ENGINE_TEMPERATURE", float('nan')),  # coolant temperature guess for the car data page, 1 Hz
       ("BRAKE", float('nan')),  # hybrid friction brake force, tells the real brakes from regen
     ]
 
