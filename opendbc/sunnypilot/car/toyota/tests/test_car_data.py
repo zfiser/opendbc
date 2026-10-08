@@ -11,12 +11,13 @@ from opendbc.sunnypilot.car.toyota.car_data import build_car_data
 
 
 def _cp(odometer: float, odometer_ts: int, units: int, rpm: float = 0.0, rpm_ts: int = 0,
-        pressures=(0, 0, 0, 0), pressure_ts: int = 0, temps=(0, 0, 0, 0), temp_ts: int = 0):
+        pressures=(0, 0, 0, 0), pressure_ts: int = 0, temps=(0, 0, 0, 0), temp_ts: int = 0,
+        lead: float = 0.0, lead_ts: int = 0):
   return SimpleNamespace(
-    vl={"UI_SETTING": {"ODOMETER": odometer}, "BODY_CONTROL_STATE_2": {"UNITS": units}, "ENGINE_RPM": {"RPM": rpm},
+    vl={"UI_SETTING": {"ODOMETER": odometer}, "BODY_CONTROL_STATE_2": {"UNITS": units}, "DSU_CRUISE": {"LEAD_DISTANCE": lead}, "ENGINE_RPM": {"RPM": rpm},
         "TPMS_PRESSURE": {f"PRESSURE_{i + 1}": v for i, v in enumerate(pressures)},
         "TPMS_TEMPERATURE": {f"TEMPERATURE_{i + 1}": v for i, v in enumerate(temps)}},
-    ts_nanos={"UI_SETTING": {"ODOMETER": odometer_ts}, "ENGINE_RPM": {"RPM": rpm_ts},
+    ts_nanos={"UI_SETTING": {"ODOMETER": odometer_ts}, "ENGINE_RPM": {"RPM": rpm_ts}, "DSU_CRUISE": {"LEAD_DISTANCE": lead_ts},
               "TPMS_PRESSURE": {"PRESSURE_1": pressure_ts}, "TPMS_TEMPERATURE": {"TEMPERATURE_1": temp_ts}},
   )
 
@@ -45,6 +46,17 @@ class TestCarData:
   def test_odometer_not_received(self):
     # message never seen on the bus: must be reported invalid, not as 0
     assert not _by_key(build_car_data(_cp(0, odometer_ts=0, units=1)))["odometer"].valid
+
+  def test_lead_distance(self):
+    item = _by_key(build_car_data(_cp(0, 0, 1, lead=23, lead_ts=1)))["lead_distance"]
+    assert item.valid and item.value == 23 and item.unit == "m"
+
+  def test_lead_distance_none_marker_is_invalid(self):
+    for marker in (250, 252, 253, 255):
+      assert not _by_key(build_car_data(_cp(0, 0, 1, lead=marker, lead_ts=1)))["lead_distance"].valid
+
+  def test_lead_distance_not_received_is_absent(self):
+    assert "lead_distance" not in _by_key(build_car_data(_cp(0, 0, 1)))
 
   def test_rpm(self):
     item = _by_key(build_car_data(_cp(0, 0, 1, rpm=1850.5, rpm_ts=1)))["rpm"]

@@ -9,6 +9,7 @@ from opendbc.can.parser import CANParser
 from opendbc.sunnypilot.car.car_data import make_car_data_item
 
 KPA_TO_PSI = 0.14503774
+LEAD_DISTANCE_NONE = 250  # DSU_CRUISE.LEAD_DISTANCE is 252 when the radar has no lead (253 was seen too)
 TEMPERATURE_OFFSET = 40  # degrees C, the usual Toyota offset, a guess for this message
 
 
@@ -36,6 +37,12 @@ def build_car_data(cp: CANParser) -> list[structs.CarStateSP.CarDataItem]:
   rpm_seen = cp.ts_nanos["ENGINE_RPM"]["RPM"] > 0
   rpm = max(cp.vl["ENGINE_RPM"]["RPM"], 0.0) if rpm_seen else None
   items.append(make_car_data_item("rpm", "Engine RPM", rpm, "rpm"))
+
+  # DSU_CRUISE (0x365) byte 4 is the distance to the radar lead in whole metres on the RAV4 2023, matched against the vision
+  # lead in the 2026-10 recordings (median difference 1.2 m). It is reported while stock ACC is off as well.
+  if cp.ts_nanos["DSU_CRUISE"]["LEAD_DISTANCE"] > 0:
+    distance = cp.vl["DSU_CRUISE"]["LEAD_DISTANCE"]
+    items.append(make_car_data_item("lead_distance", "Lead distance", distance if distance < LEAD_DISTANCE_NONE else None, "m"))
 
   # Both tiles are guesses and are shown whatever the value is, even a not available marker, so they can be compared with the dash.
   # TPMS_PRESSURE (0x3A6): four little-endian values seen as 264, only the first one is used. It did not follow the real

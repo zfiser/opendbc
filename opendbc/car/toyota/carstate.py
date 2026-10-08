@@ -224,6 +224,7 @@ class CarState(CarStateBase, CarStateExt):
       ("ENGINE_RPM", float('nan')),  # engine speed for the car data page, same reason
       ("TPMS_PRESSURE", float('nan')),  # tire data for the car data page, sent every 3 s and not on every car
       ("TPMS_TEMPERATURE", float('nan')),
+      ("DSU_CRUISE", float('nan')),  # radar lead distance in metres, 5 Hz, only the lead distance is used here
     ]
 
     cam_messages = [
