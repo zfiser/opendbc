@@ -44,6 +44,11 @@ def build_car_data(cp: CANParser) -> list[structs.CarStateSP.CarDataItem]:
     distance = cp.vl["DSU_CRUISE"]["LEAD_DISTANCE"]
     items.append(make_car_data_item("lead_distance", "Lead distance", distance if distance < LEAD_DISTANCE_NONE else None, "m"))
 
+  # BRAKE (0xA6) BRAKE_FORCE is "hybrid only: force applied by friction brakes". In the 2026-10 recordings it was above zero
+  # whenever the pedal was pressed and almost never (0.2%) while slowing down without the pedal, which is regen.
+  if cp.ts_nanos["BRAKE"]["BRAKE_FORCE"] > 0:
+    items.append(make_car_data_item("friction_brake_force", "Friction brake", cp.vl["BRAKE"]["BRAKE_FORCE"], "N"))
+
   # Both tiles are guesses and are shown whatever the value is, even a not available marker, so they can be compared with the dash.
   # TPMS_PRESSURE (0x3A6): four little-endian values seen as 264, only the first one is used. It did not follow the real
   # pressure in the recordings of 2026-10-07 (constant while the tires warmed up).

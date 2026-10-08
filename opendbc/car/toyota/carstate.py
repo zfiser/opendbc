@@ -225,6 +225,7 @@ class CarState(CarStateBase, CarStateExt):
       ("TPMS_PRESSURE", float('nan')),  # tire data for the car data page, sent every 3 s and not on every car
       ("TPMS_TEMPERATURE", float('nan')),
       ("DSU_CRUISE", float('nan')),  # radar lead distance in metres, 5 Hz, only the lead distance is used here
+      ("BRAKE", float('nan')),  # hybrid friction brake force, tells the real brakes from regen
     ]
 
     cam_messages = [
