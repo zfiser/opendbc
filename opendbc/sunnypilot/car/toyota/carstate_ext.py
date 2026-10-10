@@ -170,4 +170,8 @@ class CarStateExt:
     self.update_traffic_signals(cp_cam)
     ret_sp.speedLimit = self.calculate_speed_limit()
 
-    ret_sp.carData = build_car_data(cp)
+    try:  # extra values for the car data page, a failure must not stop the car state
+      ret_sp.carData = build_car_data(cp)
+    except Exception:
+      carlog.exception("building the car data failed")
+      ret_sp.carData = []
