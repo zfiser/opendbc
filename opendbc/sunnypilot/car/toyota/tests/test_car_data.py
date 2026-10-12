@@ -10,12 +10,12 @@ from opendbc.sunnypilot.car.car_data import make_car_data_item
 from opendbc.sunnypilot.car.toyota.car_data import build_car_data
 
 
-def _cp(odometer: float, odometer_ts: int, units: int, rpm: float = 0.0, rpm_ts: int = 0,
+def _cp(odometer: float, odometer_ts: int, units: int, units_ts: int = 1, rpm: float = 0.0, rpm_ts: int = 0,
         lead: float = 0.0, lead_ts: int = 0, brake: float = 0.0, brake_ts: int = 0,
         temp: float = 0.0, temp_ts: int = 0):
   return SimpleNamespace(
     vl={"UI_SETTING": {"ODOMETER": odometer}, "BODY_CONTROL_STATE_2": {"UNITS": units}, "DSU_CRUISE": {"LEAD_DISTANCE": lead}, "BRAKE": {"BRAKE_FORCE": brake}, "ENGINE_TEMPERATURE": {"ENGINE_TEMP": temp}, "ENGINE_RPM": {"RPM": rpm}},
-    ts_nanos={"UI_SETTING": {"ODOMETER": odometer_ts}, "ENGINE_RPM": {"RPM": rpm_ts}, "DSU_CRUISE": {"LEAD_DISTANCE": lead_ts}, "BRAKE": {"BRAKE_FORCE": brake_ts}, "ENGINE_TEMPERATURE": {"ENGINE_TEMP": temp_ts}},
+    ts_nanos={"UI_SETTING": {"ODOMETER": odometer_ts}, "BODY_CONTROL_STATE_2": {"UNITS": units_ts}, "ENGINE_RPM": {"RPM": rpm_ts}, "DSU_CRUISE": {"LEAD_DISTANCE": lead_ts}, "BRAKE": {"BRAKE_FORCE": brake_ts}, "ENGINE_TEMPERATURE": {"ENGINE_TEMP": temp_ts}},
   )
 
 
@@ -39,6 +39,10 @@ class TestCarData:
 
   def test_odometer_imperial(self):
     assert _by_key(build_car_data(_cp(100, odometer_ts=1, units=3)))["odometer"].unit == "mi"
+
+  def test_odometer_waits_for_the_unit(self):
+    # the odometer frame came first: without the unit it must not be reported (a wrong unit resets the daily distance)
+    assert not _by_key(build_car_data(_cp(54321, odometer_ts=1, units=0, units_ts=0)))["odometer"].valid
 
   def test_odometer_not_received(self):
     # message never seen on the bus: must be reported invalid, not as 0

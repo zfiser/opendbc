@@ -16,7 +16,9 @@ def build_car_data(cp: CANParser) -> list[structs.CarStateSP.CarDataItem]:
   items = []
 
   # UI_SETTING (0x611), unit follows the cluster units setting, same flag the cruise speed code uses
-  odometer_seen = cp.ts_nanos["UI_SETTING"]["ODOMETER"] > 0
+  # The unit comes from BODY_CONTROL_STATE_2 (UI_SETTING.UNITS reads 0 on the RAV4 2023). Until that message has arrived the
+  # unit is not known: the odometer is reported invalid, a wrong unit would make the daily distance start over.
+  odometer_seen = cp.ts_nanos["UI_SETTING"]["ODOMETER"] > 0 and cp.ts_nanos["BODY_CONTROL_STATE_2"]["UNITS"] > 0
   is_metric = cp.vl["BODY_CONTROL_STATE_2"]["UNITS"] in (1, 2)
   odometer = cp.vl["UI_SETTING"]["ODOMETER"] if odometer_seen else None
   items.append(make_car_data_item("odometer", "Odometer", odometer, "km" if is_metric else "mi"))

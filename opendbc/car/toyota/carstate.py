@@ -222,10 +222,14 @@ class CarState(CarStateBase, CarStateExt):
       ("BLINKERS_STATE", float('nan')),
       ("UI_SETTING", float('nan')),  # odometer, slow and not sent on every car, must not invalidate the bus
       ("ENGINE_RPM", float('nan')),  # engine speed for the car data page, same reason
-      ("DSU_CRUISE", float('nan')),  # radar lead distance in metres, 5 Hz, only the lead distance is used here
       ("ENGINE_TEMPERATURE", float('nan')),  # coolant temperature guess for the car data page, 1 Hz
       ("BRAKE", float('nan')),  # hybrid friction brake force, tells the real brakes from regen
     ]
+
+    if not CP.flags & ToyotaFlags.UNSUPPORTED_DSU:
+      # radar lead distance for the car data, optional. With an unsupported DSU the cruise state comes from this message,
+      # there it keeps its normal timeout check (added when carstate reads it), a lost DSU must still be a CAN error.
+      pt_messages.append(("DSU_CRUISE", float('nan')))
 
     cam_messages = [
       ("RSA1", 0),
