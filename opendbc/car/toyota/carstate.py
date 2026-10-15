@@ -9,6 +9,7 @@ from opendbc.car.toyota.values import ToyotaFlags, CAR, DBC, STEER_THRESHOLD, NO
                                                   TSS2_CAR, EPS_SCALE
 from opendbc.sunnypilot.car.toyota.carstate_ext import CarStateExt
 from opendbc.sunnypilot.car.toyota.values import ToyotaFlagsSP
+from opendbc.sunnypilot.car.toyota.lta_helpers import LtaFaultFilter
 
 ButtonType = structs.CarState.ButtonEvent.Type
 SteerControlType = structs.CarParams.SteerControlType
@@ -29,6 +30,7 @@ class CarState(CarStateBase, CarStateExt):
   def __init__(self, CP, CP_SP):
     CarStateBase.__init__(self, CP, CP_SP)
     CarStateExt.__init__(self, CP, CP_SP)
+    self.lta_fault_filter = LtaFaultFilter()  # a short LTA_STATE fault report is temporary, see lta_helpers.py
     can_define = CANDefine(DBC[CP.carFingerprint][Bus.pt])
     self.eps_torque_scale = EPS_SCALE[CP.carFingerprint] / 100.
     self.cluster_speed_hyst_gap = CV.KPH_TO_MS / 2.
@@ -128,8 +130,9 @@ class CarState(CarStateBase, CarStateExt):
     ret.steerFaultPermanent = cp.vl["EPS_STATUS"]["LKA_STATE"] in PERM_STEER_FAULTS
 
     if self.CP.steerControlType == SteerControlType.angle:
-      ret.steerFaultTemporary = ret.steerFaultTemporary or cp.vl["EPS_STATUS"]["LTA_STATE"] in TEMP_STEER_FAULTS
-      ret.steerFaultPermanent = ret.steerFaultPermanent or cp.vl["EPS_STATUS"]["LTA_STATE"] in PERM_STEER_FAULTS
+      lta_temporary, lta_permanent = self.lta_fault_filter.update(cp.vl["EPS_STATUS"]["LTA_STATE"] in PERM_STEER_FAULTS, DT_CTRL)
+      ret.steerFaultTemporary = ret.steerFaultTemporary or cp.vl["EPS_STATUS"]["LTA_STATE"] in TEMP_STEER_FAULTS or lta_temporary
+      ret.steerFaultPermanent = ret.steerFaultPermanent or lta_permanent
 
       # Lane Tracing Assist control is unavailable (EPS_STATUS->LTA_STATE=0) until
       # the more accurate angle sensor signal is initialized

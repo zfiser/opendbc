@@ -14,6 +14,7 @@ from opendbc.can import CANPacker
 
 from opendbc.sunnypilot.car.toyota.gas_interceptor import GasInterceptorCarController
 from opendbc.sunnypilot.car.toyota.values import ToyotaFlagsSP
+from opendbc.sunnypilot.car.toyota.lta_helpers import ReleaseHold
 
 Ecu = structs.CarParams.Ecu
 LongCtrlState = structs.CarControl.Actuators.LongControlState
@@ -57,6 +58,7 @@ class CarController(CarControllerBase, GasInterceptorCarController):
     self.params = CarControllerParams(self.CP)
     self.last_torque = 0
     self.last_angle = 0
+    self.release_hold = ReleaseHold()  # no pull back into the curve after the driver lets go, see lta_helpers.py
     self.alert_active = False
     self.last_standstill = False
     self.standstill_req = False
@@ -156,8 +158,15 @@ class CarController(CarControllerBase, GasInterceptorCarController):
       full_torque_condition = (abs(CS.out.steeringTorqueEps) < self.params.STEER_MAX and
                                abs(CS.out.steeringTorque) < self.params.MAX_LTA_DRIVER_TORQUE_ALLOWANCE)
 
+      try:  # never lets the car controller fail
+        hold = self.release_hold.update(lta_active, CS.out.steeringPressed, self.last_angle,
+                                        CS.out.steeringAngleDeg + CS.out.steeringAngleOffsetDeg,
+                                        actuators.steeringAngleDeg + CS.out.steeringAngleOffsetDeg, 2 * DT_CTRL)
+      except Exception:
+        hold = False
+
       # TORQUE_WIND_DOWN at 0 ramps down torque at roughly the max down rate of 1500 units/sec
-      torque_wind_down = 100 if lta_active and full_torque_condition else 0
+      torque_wind_down = 100 if lta_active and full_torque_condition and not hold else 0
       can_sends.append(toyotacan.create_lta_steer_command(self.packer, self.CP.steerControlType, self.last_angle,
                                                           lta_active, self.frame // 2, torque_wind_down))
 
