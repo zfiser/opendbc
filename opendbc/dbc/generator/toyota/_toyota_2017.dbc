@@ -557,7 +557,7 @@ VAL_ 898 AIR_CONDITIONER_STATE 20 "CLIMATE OFF";
 VAL_ 921 CRUISE_CONTROL_STATE 2 "disabled" 11 "hold" 10 "hold_waiting_user_cmd" 6 "enabled" 5 "faulted";
 VAL_ 921 DISTANCE_LINES 0 "not displayed" 1 "close" 2 "medium" 3 "far";
 VAL_ 956 SPORT_ON 0 "off" 1 "on";
-VAL_ 956 GEAR 0 "D" 1 "S" 8 "N" 16 "R" 32 "P";
+VAL_ 956 GEAR 0 "D" 1 "S" 3 "S" 8 "N" 16 "R" 32 "P";
 VAL_ 956 SPORT_GEAR_ON 0 "off" 1 "on";
 VAL_ 956 SPORT_GEAR 1 "S1" 2 "S2" 3 "S3" 4 "S4" 5 "S5" 6 "S6";
 VAL_ 956 ECON_ON 0 "off" 1 "on";
