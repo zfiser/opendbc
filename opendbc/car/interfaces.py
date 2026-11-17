@@ -264,6 +264,13 @@ class CarInterfaceBase(ABC, CarInterfaceBaseSP):
       if cp is not None:
         cp.update(can_packets)
 
+    # fork: extra read-only parsers of the car state extension (e.g. the Toyota radar lead), not part of canValid / canTimeout
+    for cp in getattr(self.CS, "optional_can_parsers", ()):
+      try:
+        cp.update(can_packets)
+      except Exception:
+        pass
+
     # get CarState
     ret, ret_sp = self.CS.update(self.can_parsers)
 

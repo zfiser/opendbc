@@ -11,7 +11,7 @@ from opendbc.car import Bus, structs
 from opendbc.car.carlog import carlog
 from opendbc.can.parser import CANParser
 from opendbc.car.common.conversions import Conversions as CV
-from opendbc.sunnypilot.car.toyota.car_data import build_car_data
+from opendbc.sunnypilot.car.toyota.car_data import build_car_data, build_radar_data, create_radar_parser
 from opendbc.sunnypilot.car.toyota.values import ToyotaFlagsSP
 
 TRAFFIC_SIGNAL_MAP = {
@@ -35,6 +35,16 @@ class CarStateExt:
     self.zss_cruise_active_last = False
     self.zss_angle_offset = 0.
     self.zss_threshold_count = 0
+
+    # fork: the radar lead on the radar bus (RAV4 2023), read only. Updated by CarInterfaceBase.update through
+    # optional_can_parsers, never part of canValid / canTimeout; any failure only leaves the radar items out.
+    self.radar_cp = None
+    try:
+      self.radar_cp = create_radar_parser(CP)
+    except Exception:
+      carlog.exception("creating the radar lead parser failed")
+    self.optional_can_parsers = [self.radar_cp] if self.radar_cp is not None else []
+    self.radar_failed_logged = False
 
     """Initialize traffic signal variables"""
     self._tsgn1 = None
@@ -175,3 +185,11 @@ class CarStateExt:
     except Exception:
       carlog.exception("building the car data failed")
       ret_sp.carData = []
+
+    if self.radar_cp is not None:
+      try:  # fork: radar lead items, a failure must not stop the car state
+        ret_sp.carData = list(ret_sp.carData) + build_radar_data(self.radar_cp)
+      except Exception:
+        if not self.radar_failed_logged:  # once, this runs at 100 Hz
+          carlog.exception("building the radar lead data failed")
+          self.radar_failed_logged = True
