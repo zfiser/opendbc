@@ -270,6 +270,12 @@ class CarInterfaceBase(ABC, CarInterfaceBaseSP):
         cp.update(can_packets)
       except Exception:
         pass
+    ecu_data = getattr(self.CS, "ecu_data", None)  # fork: replies of the ECU data reader (Toyota), it never raises
+    if ecu_data is not None:
+      try:
+        ecu_data.on_can(can_packets)
+      except Exception:
+        pass
 
     # get CarState
     ret, ret_sp = self.CS.update(self.can_parsers)

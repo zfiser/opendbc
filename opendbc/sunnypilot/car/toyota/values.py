@@ -25,3 +25,4 @@ class ToyotaSafetyFlagsSP:
   DEFAULT = 0
   UNSUPPORTED_DSU = 1
   GAS_INTERCEPTOR = 2
+  ECU_DATA = 4  # fork: read-only ECU data requests (stock longitudinal), see safety/modes/toyota.h

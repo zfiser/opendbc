@@ -12,7 +12,8 @@ from opendbc.car.carlog import carlog
 from opendbc.can.parser import CANParser
 from opendbc.car.common.conversions import Conversions as CV
 from opendbc.sunnypilot.car.toyota.car_data import build_car_data, build_radar_data, create_radar_parser
-from opendbc.sunnypilot.car.toyota.values import ToyotaFlagsSP
+from opendbc.sunnypilot.car.toyota.values import ToyotaFlagsSP, ToyotaSafetyFlagsSP
+from opendbc.sunnypilot.car.toyota.ecu_data import EcuDataReader
 
 TRAFFIC_SIGNAL_MAP = {
   1: "kph",
@@ -45,6 +46,14 @@ class CarStateExt:
       carlog.exception("creating the radar lead parser failed")
     self.optional_can_parsers = [self.radar_cp] if self.radar_cp is not None else []
     self.radar_failed_logged = False
+
+    # fork: values read from the ECUs once a minute, only when the panda allows the frames (ECU_DATA safety flag)
+    self.ecu_data = None
+    try:
+      if CP_SP.safetyParam & ToyotaSafetyFlagsSP.ECU_DATA:
+        self.ecu_data = EcuDataReader()
+    except Exception:
+      carlog.exception("creating the ECU data reader failed")
 
     """Initialize traffic signal variables"""
     self._tsgn1 = None
@@ -193,3 +202,9 @@ class CarStateExt:
         if not self.radar_failed_logged:  # once, this runs at 100 Hz
           carlog.exception("building the radar lead data failed")
           self.radar_failed_logged = True
+
+    if self.ecu_data is not None:
+      try:  # fork: ECU data items, a failure must not stop the car state
+        ret_sp.carData = list(ret_sp.carData) + self.ecu_data.items()
+      except Exception:
+        pass

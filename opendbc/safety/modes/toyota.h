@@ -70,6 +70,59 @@ static bool toyota_alt_brake = false;
 static bool toyota_stock_longitudinal = false;
 static bool toyota_lta = false;
 static int toyota_dbc_eps_torque_factor = 100;   // conversion factor for STEER_TORQUE_EPS in %: see dbc file
+static bool toyota_ecu_data = false;  // fork: read-only ECU data requests allowed (sunnypilot param ECU_DATA, stock longitudinal only)
+
+// fork: the only frames allowed with ECU_DATA, all 8 bytes, zero padded: read requests (UDS 0x22 / Toyota 0x21) and the
+// ISO-TP flow control "continue" for their multi-frame replies. Nothing that writes, resets, opens a session or clears codes.
+typedef struct {
+  uint32_t addr;
+  uint8_t dat[8];
+} ToyotaEcuDataFrame;
+
+static bool toyota_ecu_data_frame_allowed(const CANPacket_t *msg) {
+  static const ToyotaEcuDataFrame TOYOTA_ECU_DATA_FRAMES[] = {
+    // engine: oil temperature, distance since the 12 V battery was disconnected
+    {0x700U, {0x03, 0x22, 0x1F, 0x5C, 0, 0, 0, 0}}, {0x700U, {0x03, 0x22, 0x10, 0x6C, 0, 0, 0, 0}},
+    // hybrid: coolant, transaxle oil, inverters, boost converter, 12 V battery, A/C power
+    {0x7D2U, {0x03, 0x22, 0x1F, 0x05, 0, 0, 0, 0}}, {0x7D2U, {0x03, 0x22, 0x10, 0x40, 0, 0, 0, 0}},
+    {0x7D2U, {0x03, 0x22, 0x10, 0xA5, 0, 0, 0, 0}}, {0x7D2U, {0x03, 0x22, 0x10, 0xA6, 0, 0, 0, 0}},
+    {0x7D2U, {0x03, 0x22, 0x10, 0xA8, 0, 0, 0, 0}}, {0x7D2U, {0x03, 0x22, 0x10, 0xB2, 0, 0, 0, 0}},
+    {0x7D2U, {0x03, 0x22, 0x10, 0xA7, 0, 0, 0, 0}}, {0x7D2U, {0x03, 0x22, 0x15, 0xEE, 0, 0, 0, 0}},
+    {0x7D2U, {0x03, 0x22, 0x15, 0xF7, 0, 0, 0, 0}}, {0x7D2U, {0x03, 0x22, 0x15, 0xF8, 0, 0, 0, 0}},
+    {0x7D2U, {0x03, 0x22, 0x1F, 0x42, 0, 0, 0, 0}}, {0x7D2U, {0x03, 0x22, 0x10, 0x7E, 0, 0, 0, 0}},
+    {0x7D2U, {0x03, 0x22, 0x10, 0x02, 0, 0, 0, 0}}, {0x7D2U, {0x03, 0x22, 0x10, 0x6E, 0, 0, 0, 0}},
+    // hybrid battery temperatures
+    {0x747U, {0x03, 0x22, 0x18, 0x14, 0, 0, 0, 0}},
+    // climate: cabin temperature, compressor speed and target
+    {0x7C4U, {0x02, 0x21, 0x21, 0, 0, 0, 0, 0}}, {0x7C4U, {0x02, 0x21, 0x49, 0, 0, 0, 0, 0}},
+    {0x7C4U, {0x02, 0x21, 0x4A, 0, 0, 0, 0, 0}},
+    // tyre pressure ECU behind the 0x750 gateway, sub-address 0x2A: temperatures, pressures, flow control
+    {0x750U, {0x2A, 0x02, 0x21, 0x16, 0, 0, 0, 0}}, {0x750U, {0x2A, 0x02, 0x21, 0x30, 0, 0, 0, 0}},
+    {0x750U, {0x2A, 0x30, 0x00, 0x00, 0, 0, 0, 0}},
+    // flow control for the multi-frame replies of the other ECUs
+    {0x700U, {0x30, 0, 0, 0, 0, 0, 0, 0}}, {0x7D2U, {0x30, 0, 0, 0, 0, 0, 0, 0}},
+    {0x747U, {0x30, 0, 0, 0, 0, 0, 0, 0}}, {0x7C4U, {0x30, 0, 0, 0, 0, 0, 0, 0}},
+  };
+
+  bool allowed = false;
+  if ((msg->bus == 0U) && (GET_LEN(msg) == 8U)) {
+    for (uint32_t i = 0U; i < (sizeof(TOYOTA_ECU_DATA_FRAMES) / sizeof(TOYOTA_ECU_DATA_FRAMES[0])); i++) {
+      const ToyotaEcuDataFrame *f = &TOYOTA_ECU_DATA_FRAMES[i];
+      if (f->addr == msg->addr) {
+        bool same = true;
+        for (uint32_t j = 0U; j < 8U; j++) {
+          if (msg->data[j] != f->dat[j]) {
+            same = false;
+          }
+        }
+        if (same) {
+          allowed = true;
+        }
+      }
+    }
+  }
+  return allowed;
+}
 
 static uint32_t toyota_compute_checksum(const CANPacket_t *msg) {
   int len = GET_LEN(msg);
@@ -386,8 +439,22 @@ static bool toyota_tx_hook(const CANPacket_t *msg) {
   // UDS: Only tester present ("\x0F\x02\x3E\x00\x00\x00\x00\x00") allowed on diagnostics address
   if (msg->addr == 0x750U) {
     // this address is sub-addressed. only allow tester present to radar (0xF)
-    bool invalid_uds_msg = GET_BYTES_64_LE(msg, 0, 8) != 0x00000000003E020FULL;
+    // fork: with ECU data (stock longitudinal only, where 0x750 is otherwise not sendable at all) only the tyre ECU frames,
+    // never the radar tester present
+    bool invalid_uds_msg;
+    if (toyota_ecu_data) {
+      invalid_uds_msg = !toyota_ecu_data_frame_allowed(msg);
+    } else {
+      invalid_uds_msg = GET_BYTES_64_LE(msg, 0, 8) != 0x00000000003E020FULL;
+    }
     if (invalid_uds_msg) {
+      tx = false;
+    }
+  }
+
+  // fork: the other ECU data addresses carry only the listed read-only frames
+  if ((msg->addr == 0x700U) || (msg->addr == 0x7D2U) || (msg->addr == 0x747U) || (msg->addr == 0x7C4U)) {
+    if (!(toyota_ecu_data && toyota_ecu_data_frame_allowed(msg))) {
       tx = false;
     }
   }
@@ -398,6 +465,13 @@ static bool toyota_tx_hook(const CANPacket_t *msg) {
 static safety_config toyota_init(uint16_t param) {
   static const CanMsg TOYOTA_TX_MSGS[] = {
     TOYOTA_COMMON_TX_MSGS
+  };
+
+  // fork: stock longitudinal plus the ECU data addresses (frames checked in the tx hook)
+  static const CanMsg TOYOTA_ECU_DATA_TX_MSGS[] = {
+    TOYOTA_COMMON_TX_MSGS
+    {0x700, 0, 8, .check_relay = false}, {0x7D2, 0, 8, .check_relay = false}, {0x747, 0, 8, .check_relay = false},
+    {0x7C4, 0, 8, .check_relay = false}, {0x750, 0, 8, .check_relay = false},
   };
 
   static const CanMsg TOYOTA_SECOC_TX_MSGS[] = {
@@ -427,6 +501,7 @@ static safety_config toyota_init(uint16_t param) {
 
   const uint16_t TOYOTA_PARAM_SP_UNSUPPORTED_DSU = 1;
   const uint16_t TOYTOA_PARAM_SP_GAS_INTERCEPTOR = 2;
+  const uint16_t TOYOTA_PARAM_SP_ECU_DATA = 4;  // fork
 
 #ifdef ALLOW_DEBUG
   const uint32_t TOYOTA_PARAM_SECOC = 8UL << TOYOTA_PARAM_OFFSET;
@@ -440,6 +515,8 @@ static safety_config toyota_init(uint16_t param) {
 
   const bool toyota_unsupported_dsu = GET_FLAG(current_safety_param_sp, TOYOTA_PARAM_SP_UNSUPPORTED_DSU);
   enable_gas_interceptor = GET_FLAG(current_safety_param_sp, TOYTOA_PARAM_SP_GAS_INTERCEPTOR);
+  // fork: only with stock longitudinal and without SecOC (the RAV4 2023 setup it was made for)
+  toyota_ecu_data = GET_FLAG(current_safety_param_sp, TOYOTA_PARAM_SP_ECU_DATA) && toyota_stock_longitudinal && !toyota_secoc;
 
   // gas interceptor should not be used if openpilot is not controlling longitudinal or is a TSK car
   if (toyota_stock_longitudinal || toyota_secoc) {
@@ -455,7 +532,11 @@ static safety_config toyota_init(uint16_t param) {
     }
   } else {
     if (toyota_stock_longitudinal) {
-      SET_TX_MSGS(TOYOTA_TX_MSGS, ret);
+      if (toyota_ecu_data) {
+        SET_TX_MSGS(TOYOTA_ECU_DATA_TX_MSGS, ret);
+      } else {
+        SET_TX_MSGS(TOYOTA_TX_MSGS, ret);
+      }
     } else {
       SET_TX_MSGS(TOYOTA_LONG_TX_MSGS, ret);
     }

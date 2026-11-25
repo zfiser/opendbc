@@ -27,7 +27,8 @@ from opendbc.sunnypilot.car.hyundai.values import HyundaiFlagsSP
 from opendbc.sunnypilot.car.rivian.values import RivianFlagsSP
 from opendbc.sunnypilot.car.subaru.values_ext import SubaruFlagsSP, SubaruSafetyFlagsSP
 from opendbc.sunnypilot.car.tesla.values import MadsScreenButtonType, TeslaFlagsSP, TeslaSafetyFlagsSP
-from opendbc.sunnypilot.car.toyota.values import ToyotaFlagsSP
+from opendbc.sunnypilot.car.toyota.values import ToyotaFlagsSP, ToyotaSafetyFlagsSP
+from opendbc.sunnypilot.car.toyota.ecu_data import ECU_DATA_CARS
 
 
 class LatControlInputs(NamedTuple):
@@ -198,3 +199,8 @@ def _initialize_toyota(CP: structs.CarParams, CP_SP: structs.CarParamsSP, params
 
     if toyota_tss2_smooth and CP.flags & ToyotaFlags.TSS2 and CP.openpilotLongitudinalControl:
       CP_SP.flags |= ToyotaFlagsSP.TSS2_SMOOTH.value
+
+    # fork: read-only ECU data (car data page), the panda allows its frames only with stock longitudinal
+    toyota_ecu_data = int(params_dict.get("ToyotaEcuData", 0)) == 1
+    if toyota_ecu_data and CP.carFingerprint in ECU_DATA_CARS and not CP.openpilotLongitudinalControl:
+      CP_SP.safetyParam |= ToyotaSafetyFlagsSP.ECU_DATA
