@@ -38,6 +38,7 @@ class Sig:
   add: float = 0.0
   label: str = ""
   unit: str = ""
+  zero_is_empty: bool = False  # raw 0 = no data (a tyre slot without a sensor reading), not a value
 
 
 @dataclass(frozen=True)
@@ -76,9 +77,11 @@ READS: tuple[EcuRead, ...] = (
   EcuRead(0x7C4, 0x7CC, None, bytes.fromhex("2149"), (Sig("diag_compressor", 0, 16, label="Compressor", unit="rpm"),)),
   EcuRead(0x7C4, 0x7CC, None, bytes.fromhex("214A"), (Sig("diag_compressor_target", 0, 16, label="Compressor target", unit="rpm"),)),
   EcuRead(0x750, 0x758, TYRE_SUB, bytes.fromhex("2116"),
-          tuple(_t(f"diag_tire_t_{w}", f"Tyre {w}", 8 * i) for i, w in enumerate(("fl", "fr", "rl", "rr")))),
+          tuple(Sig(f"diag_tire_t_{w}", 8 * i, 8, add=-40.0, label=f"Tyre {w}", unit="C", zero_is_empty=True)
+                for i, w in enumerate(("fl", "fr", "rl", "rr")))),
   EcuRead(0x750, 0x758, TYRE_SUB, bytes.fromhex("2130"),
-          tuple(Sig(f"diag_tire_p_{w}", 8 * i, 8, 100, 58, -50, f"Tyre {w}", "kPa") for i, w in enumerate(("fl", "fr", "rl", "rr")))),
+          tuple(Sig(f"diag_tire_p_{w}", 8 * i, 8, 100, 58, -50, f"Tyre {w}", "kPa", zero_is_empty=True)
+                for i, w in enumerate(("fl", "fr", "rl", "rr")))),
 )
 
 
@@ -108,6 +111,8 @@ def decode(r: EcuRead, payload: bytes) -> dict[str, float]:
     if s.bit + s.length > len(data) * 8:
       continue
     raw = (int.from_bytes(data, "big") >> (len(data) * 8 - s.bit - s.length)) & ((1 << s.length) - 1)
+    if raw == 0 and s.zero_is_empty:
+      continue  # the last good value stays until it is stale
     out[s.key] = raw * s.mul / s.div + s.add
   return out
 

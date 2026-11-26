@@ -85,6 +85,15 @@ class TestEcuData:
     for key, want in EXPECTED.items():
       assert rd.values[key][0] == pytest.approx(want, abs=0.06), key
 
+  def test_empty_tyre_slots_are_no_values(self):
+    # 24 Nov, parked: front left / right temperature slots were 0 (decoded as -40 C before), a pressure reply can be all 0
+    temps = next(r for r in ed.READS if r.req.hex() == "2116")
+    pressures = next(r for r in ed.READS if r.req.hex() == "2130")
+    assert ed.decode(temps, bytes.fromhex("61160000353500")) == {"diag_tire_t_rl": 13.0, "diag_tire_t_rr": 13.0}
+    assert ed.decode(pressures, bytes.fromhex("61300000000000")) == {}
+    oil = ed.READS[0]
+    assert ed.decode(oil, bytes.fromhex("621f5c00")) == {"diag_oil_temp": -40.0}  # elsewhere 0 is a real reading
+
   def test_spacing_and_start_delay(self):
     rd, clock = reader()
     assert rd.frames_to_send() == []
