@@ -6,12 +6,14 @@ See the LICENSE.md file in the root directory for more details.
 
 fork: values read from the car's ECUs once a minute (oil, coolant, inverters, 12 V battery, hybrid battery, cabin,
 tyres) for the car data page, carData items "diag_*". Read-only requests (UDS 0x22 / Toyota 0x21), one every
-SPACING seconds, so the whole list takes about a minute; the panda allows exactly these frames and their ISO-TP flow control
-when the ECU_DATA safety flag is set (opendbc/safety/modes/toyota.h). The identifiers come from OBDb and answered on the RAV4
+SPACING seconds, so the whole list takes about a minute; while the UI shows the car data page's tiles (it touches
+FOCUS_PATH, in RAM) the two values of those tiles (12 V current, transaxle oil) are also read once a second;
+the panda allows exactly these frames and their ISO-TP flow control when the ECU_DATA safety flag is set (opendbc/safety/modes/toyota.h). The identifiers come from OBDb and answered on the RAV4
 2023 hybrid on 24 Nov 2026 (analysis 2026-11-23_diag).
 
 Nothing here may disturb the car: every entry point catches its own errors, a failing ECU only leaves its values out.
 """
+import os
 import time
 from dataclasses import dataclass
 
@@ -21,10 +23,15 @@ from opendbc.sunnypilot.car.car_data import make_car_data_item
 
 ECU_DATA_CARS = ("TOYOTA_RAV4_TSS2_2023",)
 BUS = 0
-SPACING = 3.0  # s between two requests: 20 reads, about once a minute each
+SPACING = 3.0  # s between two requests: 19 reads, about once a minute each
 START_DELAY = 15.0  # s after the car process started (fingerprinting and engagement first)
 TIMEOUT = 1.0  # s for a reply (the tyre ECU takes about 0.14 s per frame)
 STALE = 180.0  # s, an older value is reported invalid
+FOCUS_PATH = "/dev/shm/car_data_focus"  # touched by the UI about once a second while the tiles are on screen
+FOCUS_FRESH = 3.0  # s, an older touch means the page is closed (or the UI is gone)
+FOCUS_CHECK = 1.0  # s between two looks at the file
+FAST_EVERY = 1.0  # s, each fast read while the page is open
+FAST_REQS = (bytes.fromhex("2215F7"), bytes.fromhex("221040"))  # 12 V current, transaxle oil (the hybrid ECU)
 TYRE_SUB = 0x2A  # the tyre pressure ECU behind the 0x750 gateway
 
 
@@ -56,7 +63,6 @@ def _t(key, label, bit=0):
 
 READS: tuple[EcuRead, ...] = (
   EcuRead(0x700, 0x708, None, bytes.fromhex("221F5C"), (_t("diag_oil_temp", "Oil"),)),
-  EcuRead(0x700, 0x708, None, bytes.fromhex("22106C"), (Sig("diag_12v_km", 0, 16, label="Since 12V disconnect", unit="km"),)),
   EcuRead(0x7D2, 0x7DA, None, bytes.fromhex("221F05"), (_t("diag_coolant", "Coolant"),)),
   EcuRead(0x7D2, 0x7DA, None, bytes.fromhex("221040"), (_t("diag_transaxle_oil", "Transaxle oil", 16),)),
   EcuRead(0x7D2, 0x7DA, None, bytes.fromhex("2210A5"), (_t("diag_mg_inverter", "Motor inverter"),)),
@@ -115,9 +121,24 @@ def decode(r: EcuRead, payload: bytes) -> dict[str, float]:
   return out
 
 
+FAST_READS = tuple(r for r in READS if r.req in FAST_REQS)
+
+
+def page_open(path: str = FOCUS_PATH) -> bool:
+  """The UI touched the focus file within FOCUS_FRESH seconds (both clocks are the device's wall clock)."""
+  try:
+    return time.time() - os.stat(path).st_mtime < FOCUS_FRESH
+  except OSError:
+    return False
+
+
 class EcuDataReader:
-  def __init__(self, now=time.monotonic):
+  def __init__(self, now=time.monotonic, focus=page_open):
     self._now = now
+    self._focus = focus
+    self._focused = False
+    self._focus_checked = -FOCUS_CHECK
+    self._fast_last = dict.fromkeys(FAST_READS, -FAST_EVERY)
     self._start = now()
     self._next = self._start + START_DELAY
     self._index = 0
@@ -134,17 +155,33 @@ class EcuDataReader:
       now = self._now()
       if self._pending is not None and now - self._sent_at > TIMEOUT:
         self._pending = None  # no (complete) reply: skip it, next round again
-      if self._pending is None and now >= self._next:
-        r = READS[self._index]
-        self._index = (self._index + 1) % len(READS)
-        self._next = now + SPACING
-        self._pending, self._sent_at, self._buf, self._need = r, now, b"", 0
-        self._outbox.append(CanData(r.tx, request_frame(r), BUS))
+      if self._pending is None and now >= self._start + START_DELAY:
+        r = self._fast_due(now)
+        if r is None and now >= self._next:
+          r = READS[self._index]
+          self._index = (self._index + 1) % len(READS)
+          self._next = now + SPACING
+        if r is not None:
+          self._pending, self._sent_at, self._buf, self._need = r, now, b"", 0
+          self._outbox.append(CanData(r.tx, request_frame(r), BUS))
       out, self._outbox = self._outbox, []
       return out
     except Exception:
       self._pending, self._outbox = None, []
       return []
+
+  def _fast_due(self, now: float) -> EcuRead | None:
+    """A fast read that is due while the page is open, else None. The file is looked at once per FOCUS_CHECK."""
+    if now - self._focus_checked >= FOCUS_CHECK:
+      self._focus_checked = now
+      self._focused = bool(self._focus())
+    if not self._focused:
+      return None
+    for r in FAST_READS:
+      if now - self._fast_last[r] >= FAST_EVERY:
+        self._fast_last[r] = now
+        return r
+    return None
 
   # called with the raw CAN of every car interface update
   def on_can(self, can_packets) -> None:

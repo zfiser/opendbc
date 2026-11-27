@@ -16,14 +16,14 @@ from opendbc.sunnypilot.car.toyota.values import ToyotaSafetyFlagsSP
 
 # replies of the RAV4 2023 hybrid on 24 Nov 2026 (analysis 2026-11-23_diag, probe 1 and 2, tyres from tpms_raw.py)
 REPLIES = {
-  "221F5C": "621f5c39", "22106C": "62106c0c34", "221F05": "621f0539", "221040": "621040cfc039", "2210A5": "6210a538393a",
+  "221F5C": "621f5c39", "221F05": "621f0539", "221040": "621040cfc039", "2210A5": "6210a538393a",
   "2210A6": "6210a6353636", "2210A8": "6210a8373738", "2210B2": "6210b23c", "2210A7": "6210a739393a3a", "2215EE": "6215ee2e20",
   "2215F7": "6215f78603", "2215F8": "6215f80207", "221F42": "621f423741", "22107E": "62107e24e0", "221002": "6210022e08",
   "22106E": "62106e00", "221814": "62181441b541d74159414741eb419c", "2121": "61215e",
   "2116": "61163535363500", "2130": "6130b0aeafb000",
 }
 EXPECTED = {  # what the dash / the probe showed that day
-  "diag_oil_temp": 17, "diag_12v_km": 3124, "diag_coolant": 17, "diag_transaxle_oil": 17, "diag_12v_v": 14.48, "diag_12v_a": 5.87,
+  "diag_oil_temp": 17, "diag_coolant": 17, "diag_transaxle_oil": 17, "diag_12v_v": 14.48, "diag_12v_a": 5.87,
   "diag_12v_temp": 11.9, "diag_12v_smooth": 14.14, "diag_hv_temp1": 15.71, "diag_cabin": 17.0,
   "diag_tire_t_fl": 13, "diag_tire_t_rl": 14, "diag_tire_p_fl": 253.4, "diag_tire_p_fr": 250.0,
 }
@@ -37,9 +37,9 @@ class Clock:
     return self.t
 
 
-def reader():
+def reader(focus=False):
   clock = Clock()
-  return ed.EcuDataReader(now=clock), clock
+  return ed.EcuDataReader(now=clock, focus=lambda: focus), clock
 
 
 def reply_frames(r: ed.EcuRead, payload: bytes) -> list[bytes]:
@@ -119,6 +119,47 @@ class TestEcuData:
     for msg in sent:
       assert safety.safety_tx_hook(libsafety_py.make_CANPacket(msg.address, msg.src, msg.dat)), f"{msg.address:#x} {msg.dat.hex()}"
     safety.set_current_safety_param_sp(0)
+
+  def test_page_open_reads_the_two_tile_values_once_a_second(self):
+    rd, clock = reader(focus=True)
+    assert len(ed.FAST_READS) == 2 and {s.key for r in ed.FAST_READS for s in r.sigs} == {"diag_12v_a", "diag_transaxle_oil"}
+    clock.t = ed.START_DELAY - 0.01
+    assert rd.frames_to_send() == []  # the start delay holds for the fast reads too
+    sent = []
+    t = ed.START_DELAY
+    while t < ed.START_DELAY + 10.0:  # 10 s, no replies: every request times out (or is answered) within TIMEOUT
+      clock.t = t
+      for msg in rd.frames_to_send():
+        sent.append(msg.dat)
+        rd._pending = None  # answered at once
+      t += 0.01
+    fast = [ed.request_frame(r) for r in ed.FAST_READS]
+    for frame in fast:
+      assert 9 <= sent.count(frame) <= 12, sent.count(frame)  # about once a second each (plus its turn in the round)
+    others = [d for d in sent if d not in fast]
+    assert 3 <= len(others) <= 4  # the round goes on at one every SPACING seconds
+
+  def test_page_closed_no_fast_reads_and_the_file_is_looked_at_once_a_second(self):
+    looks = []
+    clock = Clock()
+    rd = ed.EcuDataReader(now=clock, focus=lambda: looks.append(clock.t) or False)
+    sent = []
+    t = ed.START_DELAY
+    while t < ed.START_DELAY + 10.0:
+      clock.t = t
+      sent += rd.frames_to_send()
+      rd._pending = None
+      t += 0.01
+    assert len(sent) == 4 and 9 <= len(looks) <= 11
+
+  def test_page_open_file(self, tmp_path):
+    path = tmp_path / "focus"
+    assert not ed.page_open(str(path))
+    path.touch()
+    assert ed.page_open(str(path))
+    old = ed.time.time() - ed.FOCUS_FRESH - 1
+    ed.os.utime(path, (old, old))
+    assert not ed.page_open(str(path))
 
   def test_stale_values_become_invalid(self):
     rd, clock = reader()

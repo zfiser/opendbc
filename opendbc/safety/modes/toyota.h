@@ -81,8 +81,8 @@ typedef struct {
 
 static bool toyota_ecu_data_frame_allowed(const CANPacket_t *msg) {
   static const ToyotaEcuDataFrame TOYOTA_ECU_DATA_FRAMES[] = {
-    // engine: oil temperature, distance since the 12 V battery was disconnected
-    {0x700U, {0x03, 0x22, 0x1F, 0x5C, 0, 0, 0, 0}}, {0x700U, {0x03, 0x22, 0x10, 0x6C, 0, 0, 0, 0}},
+    // engine: oil temperature
+    {0x700U, {0x03, 0x22, 0x1F, 0x5C, 0, 0, 0, 0}},
     // hybrid: coolant, transaxle oil, inverters, boost converter, 12 V battery, A/C power
     {0x7D2U, {0x03, 0x22, 0x1F, 0x05, 0, 0, 0, 0}}, {0x7D2U, {0x03, 0x22, 0x10, 0x40, 0, 0, 0, 0}},
     {0x7D2U, {0x03, 0x22, 0x10, 0xA5, 0, 0, 0, 0}}, {0x7D2U, {0x03, 0x22, 0x10, 0xA6, 0, 0, 0, 0}},

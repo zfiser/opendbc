@@ -13,7 +13,7 @@ ECU_DATA_ADDRS = [0x700, 0x7D2, 0x747, 0x7C4, 0x750]
 
 # the exact frames the reader sends (opendbc/sunnypilot/car/toyota/ecu_data.py)
 READS = {
-  0x700: ["221F5C", "22106C"],
+  0x700: ["221F5C"],
   0x7D2: ["221F05", "221040", "2210A5", "2210A6", "2210A8", "2210B2", "2210A7", "2215EE", "2215F7", "2215F8", "221F42",
           "22107E", "221002", "22106E"],
   0x747: ["221814"],
