@@ -338,7 +338,7 @@ class CarController(CarControllerBase, GasInterceptorCarController):
     new_actuators.accel = self.accel
     new_actuators.gas = self.gas
 
-    ecu_data = getattr(CS, "ecu_data", None)  # fork: read-only ECU data requests, at most one every 2.6 s (ecu_data.py)
+    ecu_data = getattr(CS, "ecu_data", None)  # fork: read-only ECU data requests, at most one every 3 s (ecu_data.py)
     if ecu_data is not None:
       try:
         can_sends.extend(ecu_data.frames_to_send())

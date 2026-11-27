@@ -5,7 +5,7 @@ This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 
 fork: values read from the car's ECUs once a minute (oil, coolant, inverters, 12 V battery, hybrid battery, cabin,
-compressor, tyres) for the car data page, carData items "diag_*". Read-only requests (UDS 0x22 / Toyota 0x21), one every
+tyres) for the car data page, carData items "diag_*". Read-only requests (UDS 0x22 / Toyota 0x21), one every
 SPACING seconds, so the whole list takes about a minute; the panda allows exactly these frames and their ISO-TP flow control
 when the ECU_DATA safety flag is set (opendbc/safety/modes/toyota.h). The identifiers come from OBDb and answered on the RAV4
 2023 hybrid on 24 Nov 2026 (analysis 2026-11-23_diag).
@@ -21,7 +21,7 @@ from opendbc.sunnypilot.car.car_data import make_car_data_item
 
 ECU_DATA_CARS = ("TOYOTA_RAV4_TSS2_2023",)
 BUS = 0
-SPACING = 2.6  # s between two requests: 22 reads, about once a minute each
+SPACING = 3.0  # s between two requests: 20 reads, about once a minute each
 START_DELAY = 15.0  # s after the car process started (fingerprinting and engagement first)
 TIMEOUT = 1.0  # s for a reply (the tyre ECU takes about 0.14 s per frame)
 STALE = 180.0  # s, an older value is reported invalid
@@ -74,8 +74,6 @@ READS: tuple[EcuRead, ...] = (
   EcuRead(0x747, 0x74F, None, bytes.fromhex("221814"),
           tuple(Sig(f"diag_hv_temp{i + 1}", 16 * i, 16, 19531, 5e6, -50, f"HV battery {i + 1}", "C") for i in range(6))),
   EcuRead(0x7C4, 0x7CC, None, bytes.fromhex("2121"), (Sig("diag_cabin", 0, 8, 63.75, 255, -6.5, "Cabin", "C"),)),
-  EcuRead(0x7C4, 0x7CC, None, bytes.fromhex("2149"), (Sig("diag_compressor", 0, 16, label="Compressor", unit="rpm"),)),
-  EcuRead(0x7C4, 0x7CC, None, bytes.fromhex("214A"), (Sig("diag_compressor_target", 0, 16, label="Compressor target", unit="rpm"),)),
   EcuRead(0x750, 0x758, TYRE_SUB, bytes.fromhex("2116"),
           tuple(Sig(f"diag_tire_t_{w}", 8 * i, 8, add=-40.0, label=f"Tyre {w}", unit="C", zero_is_empty=True)
                 for i, w in enumerate(("fl", "fr", "rl", "rr")))),
